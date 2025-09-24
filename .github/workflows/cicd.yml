@@ -1,17 +1,20 @@
 name: KBOT-CICD
 
-on: push
+on:
+  push:
+    branches:
+      - develop  # або main, підлаштуй під свою гілку
 
 env:
   TARGETARCH: amd64
-  
+  TARGETOS: linux
+
 jobs:
   ci:
     name: CI
     runs-on: ubuntu-latest
 
     steps:
-                          
       - name: Checkout
         uses: actions/checkout@v3
         with:
@@ -20,35 +23,46 @@ jobs:
       - name: Run test
         run: make test
 
-      - name: Docker Hub login
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build&Push
-        env:
-          APP: "kbot"
-          REGISTRY: ${{ secrets.DOCKERHUB_USERNAME }}
-        run: make image push TARGETARCH=$TARGETARCH
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push Docker Image
+        run: |
+          docker buildx create --use
+          docker buildx build --platform linux/amd64 \
+            -t ghcr.io/${{ github.repository_owner }}/kbot:$(git describe --tags --abbrev=0)-$(git rev-parse --short HEAD)-linux-amd64 \
+            --push \
+            .
+      
       - name: Clean
         run: make clean TARGETARCH=$TARGETARCH
-      
+
   cd:
     name: CD
     needs: ci
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-    - run: echo "VERSION=$(git describe --tags --abbrev=0)-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-    - uses: mikefarah/yq@master
-      with:
-        cmd: yq -i '.image.tag=strenv(VERSION) | .image.arch=strenv(TARGETARCH)' helm/values.yaml
-    - run: |
-        git config user.name github-actions
-        git config user.email github-actions@github.com
-        git commit -am "update version $VERSION"
-        git push
+      - name: Set VERSION env
+        run: echo "VERSION=$(git describe --tags --abbrev=0)-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Update Helm chart image tag and arch
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq -i '.image.tag=strenv(VERSION) | .image.arch=strenv(TARGETARCH)' helm/values.yaml
+
+      - name: Commit Helm chart changes
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add helm/values.yaml
+          git commit -m "chore: update version $VERSION"
+          git push
