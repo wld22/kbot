@@ -1,5 +1,5 @@
 image:
   repository: ghcr.io/wld22/kbot
-  tag: "..."     
+  tag: "v1.0.0-5899d07"
   os: linux
   arch: amd64
