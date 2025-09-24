@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run test
+      - name: Run tests
         run: make test
 
       - name: Log in to GitHub Container Registry
@@ -37,9 +37,9 @@ jobs:
             -t ghcr.io/${{ github.repository_owner }}/kbot:$(git describe --tags --abbrev=0)-$(git rev-parse --short HEAD)-linux-amd64 \
             --push \
             .
-      
+
       - name: Clean
-        run: make clean TARGETARCH=$TARGETARCH
+        run: make clean TARGETARCH=${{ env.TARGETARCH }}
 
   cd:
     name: CD
@@ -47,7 +47,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
