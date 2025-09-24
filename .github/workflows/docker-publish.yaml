@@ -3,7 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     branches:
-      - develop   # або main, залежно від твоєї основної гілки
+      - develop   # або main
 
 env:
   TARGETARCH: amd64
@@ -41,3 +41,4 @@ jobs:
             --platform linux/amd64 \
             -t ghcr.io/wld22/kbot:${{ steps.set-version.outputs.version }}-linux-amd64 \
             --push \
+            .
