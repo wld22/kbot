@@ -1,0 +1,45 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - develop   # або main, залежно від твоєї основної гілки
+
+env:
+  TARGETARCH: amd64
+  TARGETOS: linux
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set version
+        id: set-version
+        run: |
+          GIT_TAG=$(git describe --tags --abbrev=0)
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          VERSION="${GIT_TAG}-${GIT_COMMIT}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          docker buildx create --use
+          docker buildx build \
+            --platform linux/amd64 \
+            -t ghcr.io/wld22/kbot:${{ steps.set-version.outputs.version }}-linux-amd64 \
+            --push \
+            .
+
