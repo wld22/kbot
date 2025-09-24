@@ -2,7 +2,7 @@ name: KBOT-CICD
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]  # або "develop", якщо ти працюєш у dev-гілці
   pull_request:
     branches: [ main ]
 
@@ -10,14 +10,14 @@ env:
   TARGETARCH: amd64
   TARGETOS: linux
   CGO_ENABLED: 0
-  
+
 jobs:
   ci:
     name: CI
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -28,26 +28,25 @@ jobs:
           go-version: '1.22'
           cache: true
 
-      - name: Run golangci-lint
+      - name: Lint Go code
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
           args: --timeout=5m
 
-      # - name: Run tests
-      #   run: make test
+      - name: Run tests
+        run: make test
 
-      - name: Build
+      - name: Build binary
         run: make build TARGETARCH=${{ env.TARGETARCH }} TARGETOS=${{ env.TARGETOS }}
 
   cd:
     name: CD
     needs: ci
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -58,40 +57,41 @@ jobs:
           go-version: '1.22'
           cache: true
 
-      - name: Set version
+      - name: Set VERSION
         run: |
           VERSION=$(git describe --tags --abbrev=0)-$(git rev-parse --short HEAD)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Using version: $VERSION"
 
-      - name: Docker Hub login
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image to ghcr.io
         env:
           APP: "kbot"
-          REGISTRY: ${{ secrets.DOCKERHUB_USERNAME }}
+          REGISTRY: "ghcr.io/${{ github.repository_owner }}"
         run: |
           make image push \
             TARGETARCH=${{ env.TARGETARCH }} \
             TARGETOS=${{ env.TARGETOS }} \
             VERSION=${{ env.VERSION }}
 
-      - name: Update Helm chart
+      - name: Update Helm values.yaml
         uses: mikefarah/yq@master
         with:
-          cmd: yq -i '.image.tag=strenv(VERSION) | .image.arch=strenv(TARGETARCH)' helm/values.yaml
+          cmd: yq -i '.image.tag=strenv(VERSION) | .image.arch=strenv(TARGETARCH) | .image.os=strenv(TARGETOS)' helm/values.yaml
 
-      - name: Commit Helm chart changes
+      - name: Commit updated Helm values.yaml
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add helm/values.yaml
-          git commit -m "chore: update version to ${{ env.VERSION }}"
+          git commit -m "chore: update image tag to $VERSION"
           git push
 
-      - name: Cleanup
+      - name: Cleanup build artifacts
         run: make clean TARGETARCH=${{ env.TARGETARCH }}
