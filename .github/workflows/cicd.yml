@@ -20,7 +20,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Set up Go
@@ -50,7 +49,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Set up Go
@@ -76,11 +74,10 @@ jobs:
         env:
           APP: "kbot"
           REGISTRY: "ghcr.io/${{ github.repository_owner }}"
+          TARGETARCH: ${{ env.TARGETARCH }}
+          TARGETOS: ${{ env.TARGETOS }}
         run: |
-          make image push \
-            TARGETARCH=${{ env.TARGETARCH }} \
-            TARGETOS=${{ env.TARGETOS }} \
-            VERSION=${{ env.VERSION }}
+          make image push TARGETARCH=$TARGETARCH TARGETOS=$TARGETOS VERSION=$VERSION
 
       - name: Update Helm values.yaml
         uses: mikefarah/yq@master
@@ -91,9 +88,13 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add helm/values.yaml
-          git commit -m "chore: update image tag to $VERSION"
-          git push
+          if ! git diff --quiet helm/values.yaml; then
+            git add helm/values.yaml
+            git commit -m "chore: update image tag to $VERSION"
+            git push
+          else
+            echo "No changes in helm/values.yaml"
+          fi
 
       - name: Cleanup build artifacts
         run: make clean TARGETARCH=${{ env.TARGETARCH }}
