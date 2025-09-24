@@ -1,6 +1,6 @@
 # Application name and registry configuration
-APP := $(shell basename $(shell git remote get-url origin))
-REGISTRY := denvasyliev
+APP := kbot
+REGISTRY := wld22
 VERSION := $(shell git describe --tags --abbrev=0)-$(shell git rev-parse --short HEAD)
 
 # Build configuration
@@ -80,7 +80,7 @@ build: format get
 # Build Docker image
 image:
 	@echo "Building Docker image..."
-	@docker build . -t $(REGISTRY)/$(APP):$(VERSION)-$(TARGETARCH) \
+	@docker build . -t docker.io/$(REGISTRY)/$(APP):$(VERSION)-$(TARGETARCH) \
 		--build-arg TARGETARCH=$(TARGETARCH) \
 		--build-arg VERSION=$(VERSION)
 
